@@ -86,6 +86,10 @@ function generatePairings() {
             for (let i = 0; i < TOTAL_TEAMS / 2; i++) {
                 const team1 = teams[i];
                 const team2 = teams[i + TOTAL_TEAMS / 2];
+                if (!team1 || !team2) {
+                    console.error(`Invalid pairing in Round 1: Team1 or Team2 is undefined. i=${i}`);
+                    continue;
+                }
                 pairings.push({
                     id: matchIdCounter++,
                     round: currentRound,
@@ -100,6 +104,10 @@ function generatePairings() {
             const round1Matches = matches.filter(m => m.round === 1);
             const winners = round1Matches.filter(m => m.outcome === 'Team1Win' || m.outcome === 'Bye').map(m => m.team1);
             const losers = round1Matches.filter(m => m.outcome === 'Team2Win').map(m => m.team2);
+
+            // Log winners and losers
+            console.log(`Round 1 Winners (${winners.length}):`, winners.map(t => t.name));
+            console.log(`Round 1 Losers (${losers.length}):`, losers.map(t => t.name));
 
             // Sort winners by originalSeed ascending
             winners.sort((a, b) => a.originalSeed - b.originalSeed);
@@ -118,10 +126,19 @@ function generatePairings() {
             // Combine reseeded teams
             const reseededTeams = winners.concat(losers);
 
+            // Verify that we have 16 teams
+            if (reseededTeams.length !== TOTAL_TEAMS) {
+                console.error(`Reseeded teams count mismatch. Expected ${TOTAL_TEAMS}, got ${reseededTeams.length}`);
+            }
+
             // Generate Upper Bracket Pairings: 1 vs5, 2 vs6, 3 vs7,4 vs8
             for (let i = 0; i < 4; i++) {
                 const team1 = reseededTeams[i];
                 const team2 = reseededTeams[i + 4];
+                if (!team1 || !team2) {
+                    console.error(`Invalid upper bracket pairing in Round 2: Team1 or Team2 is undefined. i=${i}`);
+                    continue;
+                }
                 pairings.push({
                     id: matchIdCounter++,
                     round: currentRound,
@@ -136,6 +153,10 @@ function generatePairings() {
             for (let i = 8; i < 12; i++) {
                 const team1 = reseededTeams[i];
                 const team2 = reseededTeams[i + 4];
+                if (!team1 || !team2) {
+                    console.error(`Invalid lower bracket pairing in Round 2: Team1 or Team2 is undefined. i=${i}`);
+                    continue;
+                }
                 pairings.push({
                     id: matchIdCounter++,
                     round: currentRound,
@@ -153,6 +174,8 @@ function generatePairings() {
 
     // Add pairings to matches array
     matches.push(...pairings);
+    console.log(`Generated Pairings for Round ${currentRound}:`, pairings.map(m => `${m.team1.name} vs ${m.team2 ? m.team2.name : 'Bye'}`));
+
     displayMatches(pairings);
 }
 
@@ -162,6 +185,11 @@ function displayMatches(pairings) {
 
     const matchesDisplay = document.getElementById('matches-display');
     matchesDisplay.innerHTML = '';
+
+    if (pairings.length === 0) {
+        matchesDisplay.textContent = 'No matches to display for this round.';
+        return;
+    }
 
     const table = document.createElement('table');
     const thead = document.createElement('thead');
@@ -189,7 +217,7 @@ function displayMatches(pairings) {
 
         // Team 1
         const team1Cell = document.createElement('td');
-        team1Cell.textContent = match.team1.name;
+        team1Cell.textContent = match.team1 ? match.team1.name : 'N/A';
         row.appendChild(team1Cell);
 
         // Score Input for Team 1
@@ -269,12 +297,14 @@ function submitMatchResult(matchId) {
     }
 
     if (match.team2) {
-        const score1 = parseInt(document.getElementById(`score1-${match.id}`).value);
-        const score2 = parseInt(document.getElementById(`score2-${match.id}`).value);
+        const score1Element = document.getElementById(`score1-${match.id}`);
+        const score2Element = document.getElementById(`score2-${match.id}`);
+        const score1 = parseInt(score1Element.value);
+        const score2 = parseInt(score2Element.value);
 
         // Validate scores
         if (isNaN(score1) || isNaN(score2)) {
-            alert('Please enter valid scores.');
+            alert('Please enter valid scores for both teams.');
             return;
         }
 
