@@ -227,7 +227,8 @@
                 wins: 0,
                 losses: 0,
                 buchholz: 0,
-                status: TeamStatus.ACTIVE
+                status: TeamStatus.ACTIVE,
+                currentBracket: 'upper' // Initialize all teams in Upper Bracket
             };
             teams.push(team);
         });
@@ -254,23 +255,60 @@
         let pairings = [];
 
         if (currentRound <= INITIAL_ROUNDS) {
-            // Dutch System: 1 vs 9, 2 vs 10, ..., 8 vs 16
-            for (let i = 0; i < TOTAL_TEAMS / 2; i++) {
-                const team1 = teams[i];
-                const team2 = teams[i + TOTAL_TEAMS / 2];
-                pairings.push({
-                    id: matchIdCounter++,
-                    round: currentRound,
-                    team1: team1,
-                    team2: team2,
-                    outcome: null,
-                    isBo1: true,
-                    isPromotionMatch: false,
-                    isEliminationMatch: false
-                });
+            // Dutch System: Round 1: 1 vs 9, 2 vs10,...,8 vs16
+            // Round 2: Within Upper (1-8) and Lower (9-16) brackets
+            if (currentRound === 1) {
+                for (let i = 0; i < TOTAL_TEAMS / 2; i++) {
+                    const team1 = teams[i];
+                    const team2 = teams[i + TOTAL_TEAMS / 2];
+                    pairings.push({
+                        id: matchIdCounter++,
+                        round: currentRound,
+                        team1: team1,
+                        team2: team2,
+                        outcome: null,
+                        isBo1: true
+                    });
+                }
+            } else if (currentRound === 2) {
+                // Separate teams into Upper and Lower Brackets based on Round 1 outcomes
+                const upperBracketTeams = teams.filter(t => t.currentBracket === 'upper');
+                const lowerBracketTeams = teams.filter(t => t.currentBracket === 'lower');
+
+                // Sort Upper Bracket Teams by Seed Ascending
+                upperBracketTeams.sort((a, b) => a.seed - b.seed);
+                // Pair 1 vs5, 2 vs6, etc.
+                for (let i = 0; i < upperBracketTeams.length / 2; i++) {
+                    const team1 = upperBracketTeams[i];
+                    const team2 = upperBracketTeams[i + upperBracketTeams.length / 2];
+                    pairings.push({
+                        id: matchIdCounter++,
+                        round: currentRound,
+                        team1: team1,
+                        team2: team2,
+                        outcome: null,
+                        isBo1: true
+                    });
+                }
+
+                // Sort Lower Bracket Teams by Seed Ascending
+                lowerBracketTeams.sort((a, b) => a.seed - b.seed);
+                // Pair 9 vs13,10 vs14, etc.
+                for (let i = 0; i < lowerBracketTeams.length / 2; i++) {
+                    const team1 = lowerBracketTeams[i];
+                    const team2 = lowerBracketTeams[i + lowerBracketTeams.length / 2];
+                    pairings.push({
+                        id: matchIdCounter++,
+                        round: currentRound,
+                        team1: team1,
+                        team2: team2,
+                        outcome: null,
+                        isBo1: true
+                    });
+                }
             }
         } else {
-            // Swiss Pairings: Pair teams with similar scores and avoid rematches
+            // Swiss Pairings: Pair teams based on current standings and Buchholz
             pairings = swissPairings();
         }
 
@@ -348,7 +386,7 @@
             }
             row.appendChild(score2Cell);
 
-            // Result Button
+            // Result Button or Display
             const resultCell = document.createElement('td');
             if (!match.outcome) {
                 const submitButton = document.createElement('button');
@@ -404,7 +442,7 @@
             // BO1 Score Validation
             if (match.isBo1) {
                 if (!validateBo1Scores(score1, score2)) {
-                    alert('Invalid scores for BO1 match.');
+                    alert('Invalid scores for BO1 match.\nA team must reach at least 7 rounds to win, or be the first to 8 rounds if the score reaches 6-6.');
                     return;
                 }
             }
@@ -414,10 +452,20 @@
                 match.outcome = 'Team1Win';
                 match.team1.wins += 1;
                 match.team2.losses += 1;
+                // If Round 1, set brackets
+                if (currentRound === 1) {
+                    match.team1.currentBracket = 'upper';
+                    match.team2.currentBracket = 'lower';
+                }
             } else if (score2 > score1) {
                 match.outcome = 'Team2Win';
                 match.team2.wins += 1;
                 match.team1.losses += 1;
+                // If Round 1, set brackets
+                if (currentRound === 1) {
+                    match.team2.currentBracket = 'upper';
+                    match.team1.currentBracket = 'lower';
+                }
             } else {
                 alert('Scores cannot be tied in BO1 matches.');
                 return;
@@ -426,6 +474,8 @@
             // Handle Bye: Automatic win for Team1
             match.outcome = 'Bye';
             match.team1.wins += 1;
+            match.team1.currentBracket = 'upper';
+            match.team2 = null;
         }
 
         // Update Team Statuses
@@ -441,7 +491,10 @@
         // Check if All Matches in Current Round are Completed
         const allMatchesCompleted = matches.filter(m => m.round === currentRound).every(m => m.outcome !== null);
         if (allMatchesCompleted) {
-            document.getElementById('next-round-button').classList.remove('hidden');
+            // Show Next Round Button if not reached TOTAL_ROUNDS
+            if (currentRound < TOTAL_ROUNDS) {
+                document.getElementById('next-round-button').classList.remove('hidden');
+            }
         }
     }
 
@@ -452,8 +505,7 @@
         if (score1 < 7 && score2 < 7) return false;
         if (score1 >= 7 && score2 < 6) return true;
         if (score2 >= 7 && score1 < 6) return true;
-        if (score1 === 8 && score2 === 6) return true;
-        if (score2 === 8 && score1 === 6) return true;
+        if ((score1 === 8 && score2 === 6) || (score2 === 8 && score1 === 6)) return true;
         return false;
     }
 
@@ -538,9 +590,9 @@
             team.buchholz = 0;
         });
 
-        // Sum the scores of each opponent
+        // Sum the performance of each opponent
         matches.forEach(match => {
-            if (match.team2) {
+            if (match.team2 && match.outcome) {
                 if (match.outcome === 'Team1Win') {
                     match.team1.buchholz += (match.team2.wins - match.team2.losses);
                     match.team2.buchholz += (match.team1.wins - match.team1.losses);
@@ -600,9 +652,7 @@
                         team1: team1,
                         team2: team2,
                         outcome: null,
-                        isBo1: true, // BO3 can be handled based on team status if needed
-                        isPromotionMatch: false,
-                        isEliminationMatch: false
+                        isBo1: false // BO3 for promotion/elimination matches
                     });
                     used.add(team1);
                     used.add(team2);
@@ -621,9 +671,7 @@
                 team1: byeTeam,
                 team2: null,
                 outcome: null,
-                isBo1: true,
-                isPromotionMatch: false,
-                isEliminationMatch: false
+                isBo1: false // BO3 if it's a promotion/elimination match
             });
         }
 
