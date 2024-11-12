@@ -109,6 +109,13 @@ function generatePairings() {
             console.log(`Round 1 Winners (${winners.length}):`, winners.map(t => t.name));
             console.log(`Round 1 Losers (${losers.length}):`, losers.map(t => t.name));
 
+            // Check if all 16 teams are accounted for
+            if ((winners.length + losers.length) !== TOTAL_TEAMS) {
+                alert(`Error: After Round 1, only ${winners.length + losers.length} teams were accounted for. Please ensure all Round 1 matches have been submitted.`);
+                console.error(`Reseeded teams count mismatch. Expected ${TOTAL_TEAMS}, got ${winners.length + losers.length}`);
+                return;
+            }
+
             // Sort winners by originalSeed ascending
             winners.sort((a, b) => a.originalSeed - b.originalSeed);
             // Assign newSeed 1-8
@@ -130,6 +137,9 @@ function generatePairings() {
             if (reseededTeams.length !== TOTAL_TEAMS) {
                 console.error(`Reseeded teams count mismatch. Expected ${TOTAL_TEAMS}, got ${reseededTeams.length}`);
             }
+
+            // Log reseeded teams
+            console.log(`Reseeded Teams (${reseededTeams.length}):`, reseededTeams.map(t => `${t.name} (Seed ${t.currentSeed})`));
 
             // Generate Upper Bracket Pairings: 1 vs5, 2 vs6, 3 vs7,4 vs8
             for (let i = 0; i < 4; i++) {
@@ -470,6 +480,10 @@ function calculateBuchholz() {
 
 // Handle Next Round Generation
 document.getElementById('next-round-button').addEventListener('click', function() {
+    // Optional: Add confirmation dialog to prevent accidental clicks
+    const confirmNext = confirm(`Are you sure you want to generate Round ${currentRound + 1}?`);
+    if (!confirmNext) return;
+
     // Hide Next Round Button
     this.classList.add('hidden');
 
