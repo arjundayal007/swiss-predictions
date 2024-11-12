@@ -194,7 +194,7 @@
             nameInput.type = 'text';
             nameInput.required = true;
             nameInput.placeholder = `Team ${i}`;
-            nameInput.dataset.seed = i;
+            nameInput.dataset.seed = i; // Store original seed
             nameCell.appendChild(nameInput);
 
             row.appendChild(seedCell);
@@ -210,13 +210,13 @@
         teams = [];
         teamInputs.forEach(input => {
             const team = {
-                seed: parseInt(input.dataset.seed),
+                originalSeed: parseInt(input.dataset.seed),
+                currentSeed: parseInt(input.dataset.seed), // Initialize currentSeed same as originalSeed
                 name: input.value.trim(),
                 wins: 0,
                 losses: 0,
                 buchholz: 0,
-                status: TeamStatus.ACTIVE,
-                originalSeed: parseInt(input.dataset.seed)
+                status: TeamStatus.ACTIVE
             };
             teams.push(team);
         });
@@ -243,9 +243,8 @@
         let pairings = [];
 
         if (currentRound <= INITIAL_ROUNDS) {
-            // Dutch System: Rounds 1 & 2
             if (currentRound === 1) {
-                // Round 1: 1 vs 9, 2 vs 10, ..., 8 vs 16
+                // Round 1: 1 vs 9, 2 vs 10, ..., 8 vs16
                 for (let i = 0; i < TOTAL_TEAMS / 2; i++) {
                     const team1 = teams[i];
                     const team2 = teams[i + TOTAL_TEAMS / 2];
@@ -259,30 +258,30 @@
                     });
                 }
             } else if (currentRound === 2) {
-                // Round 2: Reseed winners and losers from Round 1
+                // Round 2: Reseed based on Round 1 outcomes
+                // Separate winners and losers
                 const round1Matches = matches.filter(m => m.round === 1);
                 const winners = round1Matches.filter(m => m.outcome === 'Team1Win' || m.outcome === 'Bye').map(m => m.team1);
                 const losers = round1Matches.filter(m => m.outcome === 'Team2Win').map(m => m.team2);
 
-                // Sort winners by original seed ascending
+                // Sort winners by originalSeed ascending
                 winners.sort((a, b) => a.originalSeed - b.originalSeed);
-                // Assign new seeds 1-8
+                // Assign newSeed 1-8
                 winners.forEach((team, index) => {
-                    team.newSeed = index + 1;
+                    team.currentSeed = index + 1;
                 });
 
-                // Sort losers by original seed ascending
+                // Sort losers by originalSeed ascending
                 losers.sort((a, b) => a.originalSeed - b.originalSeed);
-                // Assign new seeds 9-16
+                // Assign newSeed 9-16
                 losers.forEach((team, index) => {
-                    team.newSeed = index + 9;
+                    team.currentSeed = index + 9;
                 });
 
                 // Combine reseeded teams
                 const reseededTeams = winners.concat(losers);
 
-                // Pairings based on reseeded seeds
-                // Upper Bracket: 1 vs5, 2 vs6, 3 vs7,4 vs8
+                // Generate Upper Bracket Pairings: 1 vs5, 2 vs6, 3 vs7,4 vs8
                 for (let i = 0; i < 4; i++) {
                     const team1 = reseededTeams[i];
                     const team2 = reseededTeams[i + 4];
@@ -296,7 +295,7 @@
                     });
                 }
 
-                // Lower Bracket: 9 vs13,10 vs14,11 vs15,12 vs16
+                // Generate Lower Bracket Pairings:9 vs13,10 vs14,11 vs15,12 vs16
                 for (let i = 8; i < 12; i++) {
                     const team1 = reseededTeams[i];
                     const team2 = reseededTeams[i + 4];
@@ -534,7 +533,7 @@
 
             // Seed
             const seedCell = document.createElement('td');
-            seedCell.textContent = team.newSeed ? team.newSeed : team.originalSeed;
+            seedCell.textContent = team.currentSeed;
             row.appendChild(seedCell);
 
             // Team Name
@@ -586,16 +585,20 @@
 
         // Sum the performance of each opponent
         matches.forEach(match => {
-            if (match.team2 && match.outcome) {
-                if (match.outcome === 'Team1Win') {
-                    match.team1.buchholz += (match.team2.wins - match.team2.losses);
-                    match.team2.buchholz += (match.team1.wins - match.team1.losses);
-                } else if (match.outcome === 'Team2Win') {
-                    match.team1.buchholz += (match.team2.wins - match.team2.losses);
-                    match.team2.buchholz += (match.team1.wins - match.team1.losses);
+            if (match.outcome) {
+                if (match.outcome === 'Team1Win' || match.outcome === 'Team2Win') {
+                    const winner = match.outcome === 'Team1Win' ? match.team1 : match.team2;
+                    const loser = match.outcome === 'Team1Win' ? match.team2 : match.team1;
+
+                    // Winner's Buchholz increases by (loser's wins - loser's losses)
+                    winner.buchholz += (loser.wins - loser.losses);
+
+                    // Loser's Buchholz increases by (winner's wins - winner's losses)
+                    loser.buchholz += (winner.wins - winner.losses);
+                } else if (match.outcome === 'Bye') {
+                    // Bye does not affect Buchholz
                 }
             }
-            // Byes do not affect Buchholz
         });
     }
 
@@ -646,7 +649,7 @@
                         team1: team1,
                         team2: team2,
                         outcome: null,
-                        isBo1: false // BO3 for promotion/elimination matches
+                        isBo1: false // BO3 for Swiss matches
                     });
                     used.add(team1);
                     used.add(team2);
@@ -665,7 +668,7 @@
                 team1: byeTeam,
                 team2: null,
                 outcome: null,
-                isBo1: false // BO3 if it's a promotion/elimination match
+                isBo1: false // BO3 if it's a bye
             });
         }
 
