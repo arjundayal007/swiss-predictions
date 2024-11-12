@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Esports Swiss-System Tournament</title>
+    <title>Esports Dutch-System Swiss Tournament</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -74,18 +74,6 @@
             display: none;
         }
 
-        .match-result {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-        }
-
-        .match-result input {
-            width: 60px;
-            margin: 0 5px;
-            text-align: center;
-        }
-
         .status-promoted {
             background-color: #d4edda;
             color: #155724;
@@ -111,7 +99,7 @@
 <body>
 
 <div class="container">
-    <h1>Esports Swiss-System Tournament</h1>
+    <h1>Esports Dutch-System Swiss Tournament</h1>
 
     <!-- Team Input Section -->
     <div class="section" id="team-input-section">
@@ -228,13 +216,13 @@
                 losses: 0,
                 buchholz: 0,
                 status: TeamStatus.ACTIVE,
-                currentBracket: 'upper' // Initialize all teams in Upper Bracket
+                originalSeed: parseInt(input.dataset.seed)
             };
             teams.push(team);
         });
 
-        // Sort teams by seed
-        teams.sort((a, b) => a.seed - b.seed);
+        // Sort teams by original seed
+        teams.sort((a, b) => a.originalSeed - b.originalSeed);
 
         // Hide Team Input Section and Show Tournament Section
         document.getElementById('team-input-section').classList.add('hidden');
@@ -255,9 +243,9 @@
         let pairings = [];
 
         if (currentRound <= INITIAL_ROUNDS) {
-            // Dutch System: Round 1: 1 vs 9, 2 vs10,...,8 vs16
-            // Round 2: Within Upper (1-8) and Lower (9-16) brackets
+            // Dutch System: Rounds 1 & 2
             if (currentRound === 1) {
+                // Round 1: 1 vs 9, 2 vs 10, ..., 8 vs 16
                 for (let i = 0; i < TOTAL_TEAMS / 2; i++) {
                     const team1 = teams[i];
                     const team2 = teams[i + TOTAL_TEAMS / 2];
@@ -271,16 +259,33 @@
                     });
                 }
             } else if (currentRound === 2) {
-                // Separate teams into Upper and Lower Brackets based on Round 1 outcomes
-                const upperBracketTeams = teams.filter(t => t.currentBracket === 'upper');
-                const lowerBracketTeams = teams.filter(t => t.currentBracket === 'lower');
+                // Round 2: Reseed winners and losers from Round 1
+                const round1Matches = matches.filter(m => m.round === 1);
+                const winners = round1Matches.filter(m => m.outcome === 'Team1Win' || m.outcome === 'Bye').map(m => m.team1);
+                const losers = round1Matches.filter(m => m.outcome === 'Team2Win').map(m => m.team2);
 
-                // Sort Upper Bracket Teams by Seed Ascending
-                upperBracketTeams.sort((a, b) => a.seed - b.seed);
-                // Pair 1 vs5, 2 vs6, etc.
-                for (let i = 0; i < upperBracketTeams.length / 2; i++) {
-                    const team1 = upperBracketTeams[i];
-                    const team2 = upperBracketTeams[i + upperBracketTeams.length / 2];
+                // Sort winners by original seed ascending
+                winners.sort((a, b) => a.originalSeed - b.originalSeed);
+                // Assign new seeds 1-8
+                winners.forEach((team, index) => {
+                    team.newSeed = index + 1;
+                });
+
+                // Sort losers by original seed ascending
+                losers.sort((a, b) => a.originalSeed - b.originalSeed);
+                // Assign new seeds 9-16
+                losers.forEach((team, index) => {
+                    team.newSeed = index + 9;
+                });
+
+                // Combine reseeded teams
+                const reseededTeams = winners.concat(losers);
+
+                // Pairings based on reseeded seeds
+                // Upper Bracket: 1 vs5, 2 vs6, 3 vs7,4 vs8
+                for (let i = 0; i < 4; i++) {
+                    const team1 = reseededTeams[i];
+                    const team2 = reseededTeams[i + 4];
                     pairings.push({
                         id: matchIdCounter++,
                         round: currentRound,
@@ -291,12 +296,10 @@
                     });
                 }
 
-                // Sort Lower Bracket Teams by Seed Ascending
-                lowerBracketTeams.sort((a, b) => a.seed - b.seed);
-                // Pair 9 vs13,10 vs14, etc.
-                for (let i = 0; i < lowerBracketTeams.length / 2; i++) {
-                    const team1 = lowerBracketTeams[i];
-                    const team2 = lowerBracketTeams[i + lowerBracketTeams.length / 2];
+                // Lower Bracket: 9 vs13,10 vs14,11 vs15,12 vs16
+                for (let i = 8; i < 12; i++) {
+                    const team1 = reseededTeams[i];
+                    const team2 = reseededTeams[i + 4];
                     pairings.push({
                         id: matchIdCounter++,
                         round: currentRound,
@@ -452,20 +455,10 @@
                 match.outcome = 'Team1Win';
                 match.team1.wins += 1;
                 match.team2.losses += 1;
-                // If Round 1, set brackets
-                if (currentRound === 1) {
-                    match.team1.currentBracket = 'upper';
-                    match.team2.currentBracket = 'lower';
-                }
             } else if (score2 > score1) {
                 match.outcome = 'Team2Win';
                 match.team2.wins += 1;
                 match.team1.losses += 1;
-                // If Round 1, set brackets
-                if (currentRound === 1) {
-                    match.team2.currentBracket = 'upper';
-                    match.team1.currentBracket = 'lower';
-                }
             } else {
                 alert('Scores cannot be tied in BO1 matches.');
                 return;
@@ -474,7 +467,6 @@
             // Handle Bye: Automatic win for Team1
             match.outcome = 'Bye';
             match.team1.wins += 1;
-            match.team1.currentBracket = 'upper';
             match.team2 = null;
         }
 
@@ -485,8 +477,8 @@
         // Update Standings
         updateStandings();
 
-        // Update Matches Display
-        displayMatches([match]);
+        // Update Matches Display for Current Round
+        displayMatches(matches.filter(m => m.round === currentRound));
 
         // Check if All Matches in Current Round are Completed
         const allMatchesCompleted = matches.filter(m => m.round === currentRound).every(m => m.outcome !== null);
@@ -494,6 +486,9 @@
             // Show Next Round Button if not reached TOTAL_ROUNDS
             if (currentRound < TOTAL_ROUNDS) {
                 document.getElementById('next-round-button').classList.remove('hidden');
+            } else {
+                // Tournament Completed
+                alert('Tournament Completed!');
             }
         }
     }
@@ -503,9 +498,8 @@
         // A team must reach at least 7 rounds to win
         // If both teams reach 6, first to 8 wins
         if (score1 < 7 && score2 < 7) return false;
-        if (score1 >= 7 && score2 < 6) return true;
-        if (score2 >= 7 && score1 < 6) return true;
-        if ((score1 === 8 && score2 === 6) || (score2 === 8 && score1 === 6)) return true;
+        if (score1 >= 7 && score2 <= 7) return true;
+        if (score2 >= 7 && score1 <= 7) return true;
         return false;
     }
 
@@ -528,11 +522,11 @@
         // Calculate Buchholz Scores
         calculateBuchholz();
 
-        // Sort Teams: Wins Desc, Buchholz Desc, Seed Asc
+        // Sort Teams: Wins Desc, Buchholz Desc, Original Seed Asc
         const sortedTeams = [...teams].sort((a, b) => {
             if (b.wins !== a.wins) return b.wins - a.wins;
             if (b.buchholz !== a.buchholz) return b.buchholz - a.buchholz;
-            return a.seed - b.seed;
+            return a.originalSeed - b.originalSeed;
         });
 
         sortedTeams.forEach(team => {
@@ -540,7 +534,7 @@
 
             // Seed
             const seedCell = document.createElement('td');
-            seedCell.textContent = team.seed;
+            seedCell.textContent = team.newSeed ? team.newSeed : team.originalSeed;
             row.appendChild(seedCell);
 
             // Team Name
@@ -607,25 +601,25 @@
 
     // Handle Next Round Generation
     document.getElementById('next-round-button').addEventListener('click', function() {
-        // Increment Round
-        currentRound += 1;
-
         // Hide Next Round Button
         this.classList.add('hidden');
 
         // Generate Pairings for Next Round
         generatePairings();
+
+        // Increment Round
+        currentRound += 1;
     });
 
     // Swiss Pairing Algorithm with Buchholz
     function swissPairings() {
         const activeTeams = teams.filter(t => t.status === TeamStatus.ACTIVE);
 
-        // Sort active teams by wins descending, then Buchholz descending, then seed ascending
+        // Sort active teams by wins descending, then Buchholz descending, then original seed ascending
         const sortedTeams = activeTeams.sort((a, b) => {
             if (b.wins !== a.wins) return b.wins - a.wins;
             if (b.buchholz !== a.buchholz) return b.buchholz - a.buchholz;
-            return a.seed - b.seed;
+            return a.originalSeed - b.originalSeed;
         });
 
         const pairings = [];
