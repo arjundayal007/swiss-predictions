@@ -102,8 +102,12 @@ function generatePairings() {
         } else if (currentRound === 2) {
             // Round 2: Reseed based on Round 1 outcomes
             const round1Matches = matches.filter(m => m.round === 1);
-            const winners = round1Matches.filter(m => m.outcome === 'Team1Win' || m.outcome === 'Bye').map(m => m.team1);
-            const losers = round1Matches.filter(m => m.outcome === 'Team2Win').map(m => m.team2);
+            const winners = round1Matches.map(m => m.outcome === 'Team1Win' ? m.team1 :
+                                               m.outcome === 'Team2Win' ? m.team2 : null)
+                                         .filter(t => t !== null);
+            const losers = round1Matches.map(m => m.outcome === 'Team1Win' ? m.team2 :
+                                              m.outcome === 'Team2Win' ? m.team1 : null)
+                                       .filter(t => t !== null);
 
             // Log winners and losers
             console.log(`Round 1 Winners (${winners.length}):`, winners.map(t => t.name));
@@ -480,7 +484,7 @@ function calculateBuchholz() {
 
 // Handle Next Round Generation
 document.getElementById('next-round-button').addEventListener('click', function() {
-    // Optional: Add confirmation dialog to prevent accidental clicks
+    // Add confirmation dialog to prevent accidental clicks
     const confirmNext = confirm(`Are you sure you want to generate Round ${currentRound + 1}?`);
     if (!confirmNext) return;
 
